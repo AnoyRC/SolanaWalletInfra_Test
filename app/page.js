@@ -15,6 +15,8 @@ export default function Home() {
   const [encryptedMessage, setEncryptedMessage] = useState(null);
   const [decryptedMessage, setDecryptedMessage] = useState(null);
   const inputEncryptedMessage = useRef(null);
+  const [LCDecryptedMessage, setLCDecryptedMessage] = useState(null);
+  const LCPassword = useRef(null);
 
   const createWallet = () => {
     const mnemonic = bip39.generateMnemonic();
@@ -49,6 +51,13 @@ export default function Home() {
 
   const storeInLocalStorage = () => {
     localStorage.setItem("secretPair", encryptedMessage);
+  };
+
+  const getFromLC_Decrypt = (password) => {
+    const RSAKey = cryptico.generateRSAKey(password, 1024);
+    const encryptedMessage = localStorage.getItem("secretPair");
+    const DecryptionResult = cryptico.decrypt(encryptedMessage, RSAKey);
+    setLCDecryptedMessage(DecryptionResult.plaintext);
   };
 
   return (
@@ -127,6 +136,21 @@ export default function Home() {
       >
         Store in localStorage
       </button>
+      <input
+        ref={LCPassword}
+        className="rounded-full p-4 text-black w-[50%]"
+        placeholder="Password"
+      ></input>
+      <button
+        onClick={() => {
+          if (LCPassword.current.value && LCPassword.current.value.length > 0)
+            getFromLC_Decrypt(LCPassword.current.value);
+        }}
+        className="rounded-full p-4 bg-red-500 text-white"
+      >
+        Decrypt from localStorage
+      </button>
+      <h1 className="text-center">{LCDecryptedMessage}</h1>
     </main>
   );
 }
