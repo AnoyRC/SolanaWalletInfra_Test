@@ -10,6 +10,7 @@ export default function Home() {
   const [address, setAddress] = useState("");
   const inputMnemonic = useRef(null);
   const inputPassword = useRef(null);
+  const [RSAPubKey, setRSAPubKey] = useState(null);
   const [RSAKey, setRSAKey] = useState(null);
   const [encryptedMessage, setEncryptedMessage] = useState(null);
 
@@ -30,7 +31,13 @@ export default function Home() {
 
   const getKeyFromPassword = (password) => {
     const RSAKey = cryptico.generateRSAKey(password, 1024);
-    setRSAKey(cryptico.publicKeyString(RSAKey));
+    setRSAPubKey(cryptico.publicKeyString(RSAKey));
+    setRSAKey(RSAKey);
+  };
+
+  const encryptMessage = () => {
+    const EncryptionResult = cryptico.encrypt(mnemonic, RSAPubKey);
+    setEncryptedMessage(EncryptionResult.cipher);
   };
 
   return (
@@ -77,7 +84,14 @@ export default function Home() {
       >
         Create RSA Key
       </button>
-      <h1 className="text-center">{RSAKey}</h1>
+      <h1 className="text-center">{RSAPubKey}</h1>
+      <button
+        onClick={encryptMessage}
+        className="rounded-full p-4 bg-red-500 text-white"
+      >
+        Encrypt
+      </button>
+      <h1 className="text-center">{encryptedMessage}</h1>
     </main>
   );
 }
