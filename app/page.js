@@ -62,9 +62,12 @@ export default function Home() {
   //Get Encrypted Mnemonic from localStorage and Decrypt with RSA Private Key from Password
   const getFromLC_Decrypt = (password) => {
     const RSAKey = cryptico.generateRSAKey(password, 1024);
+    console.log(RSAKey);
     const encryptedMessage = localStorage.getItem("secretPair");
+    console.log(encryptedMessage);
     const DecryptionResult = cryptico.decrypt(encryptedMessage, RSAKey);
     setLCDecryptedMessage(DecryptionResult.plaintext);
+    console.log(DecryptionResult.plaintext);
   };
 
   return (
