@@ -18,6 +18,7 @@ export default function Home() {
   const [LCDecryptedMessage, setLCDecryptedMessage] = useState(null);
   const LCPassword = useRef(null);
 
+  //Create Wallet
   const createWallet = () => {
     const mnemonic = bip39.generateMnemonic();
     const seed = bip39.mnemonicToSeedSync(mnemonic);
@@ -26,6 +27,7 @@ export default function Home() {
     setAddress(keypair.publicKey.toString());
   };
 
+  //Import Wallet
   const importWallet = (mnemonic) => {
     const seed = bip39.mnemonicToSeedSync(mnemonic);
     const keypair = Keypair.fromSeed(seed.slice(0, 32));
@@ -33,26 +35,31 @@ export default function Home() {
     setAddress(keypair.publicKey.toString());
   };
 
+  //Create RSA Key from Password
   const getKeyFromPassword = (password) => {
     const RSAKey = cryptico.generateRSAKey(password, 1024);
     setRSAPubKey(cryptico.publicKeyString(RSAKey));
     setRSAKey(RSAKey);
   };
 
+  //Encrypt Mnemonic with RSA Public Key
   const encryptMessage = () => {
     const EncryptionResult = cryptico.encrypt(mnemonic, RSAPubKey);
     setEncryptedMessage(EncryptionResult.cipher);
   };
 
+  //Decrypt Encrypted Mnemonic with RSA Private Key
   const decryptMessage = (encryptedMessage) => {
     const DecryptionResult = cryptico.decrypt(encryptedMessage, RSAKey);
     setDecryptedMessage(DecryptionResult.plaintext);
   };
 
+  //Store Encrypted Mnemonic in localStorage
   const storeInLocalStorage = () => {
     localStorage.setItem("secretPair", encryptedMessage);
   };
 
+  //Get Encrypted Mnemonic from localStorage and Decrypt with RSA Private Key from Password
   const getFromLC_Decrypt = (password) => {
     const RSAKey = cryptico.generateRSAKey(password, 1024);
     const encryptedMessage = localStorage.getItem("secretPair");
@@ -62,6 +69,7 @@ export default function Home() {
 
   return (
     <main className="flex min-h-screen flex-col items-center space-y-4 p-24">
+      {/* Create Wallet */}
       <button
         onClick={createWallet}
         className="rounded-full p-4 bg-red-500 text-white"
@@ -70,6 +78,8 @@ export default function Home() {
       </button>
       <h1>{mnemonic}</h1>
       <h1>{address}</h1>
+
+      {/* Import Wallet */}
       <input
         ref={inputMnemonic}
         className="rounded-full p-4 text-black w-[50%]"
@@ -87,6 +97,8 @@ export default function Home() {
       >
         Import Wallet
       </button>
+
+      {/* RSA Public Key from Password */}
       <input
         ref={inputPassword}
         className="rounded-full p-4 text-black w-[50%]"
@@ -105,6 +117,8 @@ export default function Home() {
         Create RSA Key
       </button>
       <h1 className="text-center">{RSAPubKey}</h1>
+
+      {/* Encrypt Mnemonic with RSA Public key */}
       <button
         onClick={encryptMessage}
         className="rounded-full p-4 bg-red-500 text-white"
@@ -112,6 +126,8 @@ export default function Home() {
         Encrypt
       </button>
       <h1 className="text-center">{encryptedMessage}</h1>
+
+      {/* Decrypt Encrypted Mnemonic with RSA Private Key */}
       <input
         ref={inputEncryptedMessage}
         className="rounded-full p-4 text-black w-[50%]"
@@ -130,12 +146,16 @@ export default function Home() {
         Decrypt
       </button>
       <h1 className="text-center">{decryptedMessage}</h1>
+
+      {/* Store Encrypted Mnemonic in localStorage */}
       <button
         onClick={storeInLocalStorage}
         className="rounded-full p-4 bg-red-500 text-white"
       >
         Store in localStorage
       </button>
+
+      {/* Get Encrypted Mnemonic from localStorage and Decrypt with RSA Private Key from Password */}
       <input
         ref={LCPassword}
         className="rounded-full p-4 text-black w-[50%]"
