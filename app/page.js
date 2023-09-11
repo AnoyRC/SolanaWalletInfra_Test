@@ -38,8 +38,10 @@ export default function Home() {
   //Create RSA Key from Password
   const getKeyFromPassword = (password) => {
     const RSAKey = cryptico.generateRSAKey(password, 1024);
+    console.log(password);
     setRSAPubKey(cryptico.publicKeyString(RSAKey));
     setRSAKey(RSAKey);
+    console.log(cryptico.publicKeyString(RSAKey));
   };
 
   //Encrypt Mnemonic with RSA Public Key
@@ -62,7 +64,7 @@ export default function Home() {
   //Get Encrypted Mnemonic from localStorage and Decrypt with RSA Private Key from Password
   const getFromLC_Decrypt = (password) => {
     const RSAKey = cryptico.generateRSAKey(password, 1024);
-    console.log(RSAKey);
+    console.log(cryptico.publicKeyString(RSAKey));
     const encryptedMessage = localStorage.getItem("secretPair");
     console.log(encryptedMessage);
     const DecryptionResult = cryptico.decrypt(encryptedMessage, RSAKey);
