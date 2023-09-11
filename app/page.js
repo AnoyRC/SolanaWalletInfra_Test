@@ -47,6 +47,10 @@ export default function Home() {
     setDecryptedMessage(DecryptionResult.plaintext);
   };
 
+  const storeInLocalStorage = () => {
+    localStorage.setItem("secretPair", encryptedMessage);
+  };
+
   return (
     <main className="flex min-h-screen flex-col items-center space-y-4 p-24">
       <button
@@ -117,6 +121,12 @@ export default function Home() {
         Decrypt
       </button>
       <h1 className="text-center">{decryptedMessage}</h1>
+      <button
+        onClick={storeInLocalStorage}
+        className="rounded-full p-4 bg-red-500 text-white"
+      >
+        Store in localStorage
+      </button>
     </main>
   );
 }
