@@ -13,6 +13,8 @@ export default function Home() {
   const [RSAPubKey, setRSAPubKey] = useState(null);
   const [RSAKey, setRSAKey] = useState(null);
   const [encryptedMessage, setEncryptedMessage] = useState(null);
+  const [decryptedMessage, setDecryptedMessage] = useState(null);
+  const inputEncryptedMessage = useRef(null);
 
   const createWallet = () => {
     const mnemonic = bip39.generateMnemonic();
@@ -38,6 +40,11 @@ export default function Home() {
   const encryptMessage = () => {
     const EncryptionResult = cryptico.encrypt(mnemonic, RSAPubKey);
     setEncryptedMessage(EncryptionResult.cipher);
+  };
+
+  const decryptMessage = (encryptedMessage) => {
+    const DecryptionResult = cryptico.decrypt(encryptedMessage, RSAKey);
+    setDecryptedMessage(DecryptionResult.plaintext);
   };
 
   return (
@@ -92,6 +99,24 @@ export default function Home() {
         Encrypt
       </button>
       <h1 className="text-center">{encryptedMessage}</h1>
+      <input
+        ref={inputEncryptedMessage}
+        className="rounded-full p-4 text-black w-[50%]"
+        placeholder="Encrypted Message"
+      ></input>
+      <button
+        onClick={() => {
+          if (
+            inputEncryptedMessage.current.value &&
+            inputEncryptedMessage.current.value.length > 0
+          )
+            decryptMessage(inputEncryptedMessage.current.value);
+        }}
+        className="rounded-full p-4 bg-red-500 text-white"
+      >
+        Decrypt
+      </button>
+      <h1 className="text-center">{decryptedMessage}</h1>
     </main>
   );
 }
