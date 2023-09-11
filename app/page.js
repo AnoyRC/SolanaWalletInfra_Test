@@ -4,7 +4,7 @@ import { Keypair } from "@solana/web3.js";
 import * as bip39 from "bip39";
 import { useRef, useState } from "react";
 import * as cryptico from "cryptico";
-import { random, pki } from "node-forge";
+import forge, { random, pki } from "node-forge";
 
 export default function Home() {
   const [mnemonic, setMnemonic] = useState("");
@@ -13,7 +13,8 @@ export default function Home() {
   const inputPassword = useRef(null);
   const [RSAPubKey, setRSAPubKey] = useState(null);
   const [RSAKey, setRSAKey] = useState(null);
-  const [encryptedMessage, setEncryptedMessage] = useState(null);
+  const [encryptedMessage1, setEncryptedMessage1] = useState(null);
+  const [encryptedMessage2, setEncryptedMessage2] = useState(null);
   const [decryptedMessage, setDecryptedMessage] = useState(null);
   const inputEncryptedMessage = useRef(null);
   const [LCDecryptedMessage, setLCDecryptedMessage] = useState(null);
@@ -41,8 +42,6 @@ export default function Home() {
   const getKeyFromPassword = (password) => {
     const prng = random.createInstance();
     prng.seedFileSync = () => password;
-    const keys = cryptico.generateRSAKey(prng, 512);
-    console.log(cryptico.publicKeyString(keys));
     const { privateKey, publicKey } = pki.rsa.generateKeyPair({
       bits: 512,
       prng,
@@ -53,28 +52,19 @@ export default function Home() {
 
   //Encrypt Mnemonic with RSA Public Key
   const encryptMessage = () => {
-    const AESkey = cryptico.generateAESKey();
-    const AESCipher = cryptico.encryptAESCBC(mnemonic, AESkey);
-    console.log(AESCipher);
-    setEncryptedMessage(AESCipher.cipher);
-
-    const encryptedMessage = cryptico.encrypt(
-      cryptico.bytes2string(AESkey),
-      cryptico.publicKeyString(RSAPubKey)
-    );
-    console.log(encryptedMessage.cipher);
-    setEncryptedAESKey(encryptedMessage.cipher);
+    const chunk1 = mnemonic.slice(0, 35);
+    const chunk2 = mnemonic.slice(35, mnemonic.length);
+    const encrypted1 = RSAPubKey.encrypt(chunk1);
+    const encrypted2 = RSAPubKey.encrypt(chunk2);
+    setEncryptedMessage1(encrypted1);
+    setEncryptedMessage2(encrypted2);
   };
 
   //Decrypt Encrypted Mnemonic with RSA Private Key
   const decryptMessage = () => {
-    const decryptedMessage = cryptico.decrypt(encryptedAESKey, RSAKey);
-    console.log(decryptedMessage.plaintext);
-
-    const AESKey = cryptico.string2bytes(decryptedMessage.plaintext);
-    const decryptedMnemonic = cryptico.decryptAESCBC(encryptedMessage, AESKey);
-    console.log(decryptedMnemonic.plaintext);
-    setDecryptedMessage(decryptedMnemonic.plaintext);
+    const decrypted1 = RSAKey.decrypt(encryptedMessage1);
+    const decrypted2 = RSAKey.decrypt(encryptedMessage2);
+    setDecryptedMessage(decrypted1 + decrypted2);
   };
 
   //Store Encrypted Mnemonic in localStorage
@@ -153,7 +143,7 @@ export default function Home() {
       >
         Encrypt
       </button>
-      <h1 className="text-center">{encryptedMessage}</h1>
+      <h1 className="text-center">{encryptedMessage1 + encryptedMessage2}</h1>
 
       {/* Decrypt Encrypted Mnemonic with RSA Private Key */}
       <input
