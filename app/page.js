@@ -52,10 +52,15 @@ export default function Home() {
 
   //Encrypt Mnemonic with RSA Public Key
   const encryptMessage = () => {
+    //Chunk 1 of Mnemonic
     const chunk1 = mnemonic.slice(0, 35);
-    const chunk2 = mnemonic.slice(35, mnemonic.length);
     const encrypted1 = RSAPubKey.encrypt(chunk1);
+
+    //Chunk 2 of Mnemonic
+    const chunk2 = mnemonic.slice(35, mnemonic.length);
     const encrypted2 = RSAPubKey.encrypt(chunk2);
+
+    //Set Encrypted Mnemonic
     setEncryptedMessage1(encrypted1);
     setEncryptedMessage2(encrypted2);
   };
@@ -69,18 +74,31 @@ export default function Home() {
 
   //Store Encrypted Mnemonic in localStorage
   const storeInLocalStorage = () => {
-    localStorage.setItem("secretPair", encryptedMessage);
+    localStorage.setItem(
+      "secretPair",
+      `${encryptedMessage1}---${encryptedMessage2}`
+    );
   };
 
   //Get Encrypted Mnemonic from localStorage and Decrypt with RSA Private Key from Password
   const getFromLC_Decrypt = (password) => {
-    const RSAKey = cryptico.generateRSAKey(password, 1024);
-    console.log(cryptico.publicKeyString(RSAKey));
-    const encryptedMessage = localStorage.getItem("secretPair");
-    console.log(encryptedMessage);
-    const DecryptionResult = cryptico.decrypt(encryptedMessage, RSAKey);
-    setLCDecryptedMessage(DecryptionResult.plaintext);
-    console.log(DecryptionResult.plaintext);
+    //Create RSA Key from Password
+    const prng = random.createInstance();
+    prng.seedFileSync = () => password;
+    const { privateKey } = pki.rsa.generateKeyPair({
+      bits: 512,
+      prng,
+    });
+
+    //Get Encrypted Mnemonic from localStorage
+    const secretPair = localStorage.getItem("secretPair");
+
+    //Decrypt Encrypted Mnemonic with RSA Private Key
+    const encrypted1 = secretPair.split("---")[0];
+    const encrypted2 = secretPair.split("---")[1];
+    const decrypted1 = privateKey.decrypt(encrypted1);
+    const decrypted2 = privateKey.decrypt(encrypted2);
+    setLCDecryptedMessage(decrypted1 + decrypted2);
   };
 
   return (
