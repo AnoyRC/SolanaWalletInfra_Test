@@ -5,11 +5,16 @@ import {
   Keypair,
   LAMPORTS_PER_SOL,
   PublicKey,
+  SystemProgram,
+  Transaction,
+  sendAndConfirmTransaction,
 } from "@solana/web3.js";
 import * as bip39 from "bip39";
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import * as cryptico from "cryptico";
-import forge, { random, pki } from "node-forge";
+import { random, pki } from "node-forge";
+
+const connection = new Connection("https://api.devnet.solana.com");
 
 export default function Home() {
   const [mnemonic, setMnemonic] = useState("");
@@ -24,6 +29,20 @@ export default function Home() {
   const [LCDecryptedMessage, setLCDecryptedMessage] = useState(null);
   const LCPassword = useRef(null);
   const [balance, setBalance] = useState(0);
+  const inputAmount = useRef(null);
+  const inputTo = useRef(null);
+  const [id, setId] = useState(null);
+
+  useEffect(() => {
+    if (!address) return;
+    showBalance();
+    const pubKey = new PublicKey(address);
+    if (id) connection.removeAccountChangeListener(id);
+    const Connectionid = connection.onAccountChange(pubKey, (accountInfo) => {
+      showBalance();
+    });
+    setId(Connectionid);
+  }, [address]);
 
   //Create Wallet
   const createWallet = () => {
@@ -107,11 +126,40 @@ export default function Home() {
 
   const showBalance = async () => {
     console.log(address);
-    const connection = new Connection("https://api.devnet.solana.com");
+
     const pubKey = new PublicKey(address);
-    console.log(PublicKey.isOnCurve(pubKey));
+
     const balance = await connection.getBalance(pubKey, "confirmed");
     setBalance(balance / LAMPORTS_PER_SOL);
+  };
+
+  const transfer = async (amount, to) => {
+    console.log(amount, to);
+    const connection = new Connection("https://api.devnet.solana.com");
+
+    const fromPubKey = new PublicKey(address);
+    const toPubKey = new PublicKey(to.toString());
+
+    const amountInLamports = amount * LAMPORTS_PER_SOL;
+
+    const transaction = new Transaction().add(
+      SystemProgram.transfer({
+        fromPubkey: fromPubKey,
+        toPubkey: toPubKey,
+        lamports: amountInLamports,
+      })
+    );
+    transaction.feePayer = fromPubKey;
+
+    const seed = bip39.mnemonicToSeedSync(mnemonic);
+    const keypair = Keypair.fromSeed(seed.slice(0, 32));
+
+    let txHash = await sendAndConfirmTransaction(connection, transaction, [
+      keypair,
+    ]);
+    console.log(txHash);
+
+    showBalance();
   };
 
   return (
@@ -216,6 +264,30 @@ export default function Home() {
         Show Balance
       </button>
       <h1 className="text-center">{balance}</h1>
+      <input
+        ref={inputTo}
+        className="rounded-full p-4 text-black w-[50%]"
+        placeholder="To"
+      ></input>
+      <input
+        ref={inputAmount}
+        className="rounded-full p-4 text-black w-[50%]"
+        placeholder="Amount"
+      ></input>
+      <button
+        onClick={async () => {
+          if (
+            inputAmount.current.value &&
+            inputAmount.current.value.length > 0 &&
+            inputTo.current.value &&
+            inputTo.current.value.length > 0
+          )
+            await transfer(inputAmount.current.value, inputTo.current.value);
+        }}
+        className="rounded-full p-4 bg-red-500 text-white"
+      >
+        Transfer
+      </button>
     </main>
   );
 }
