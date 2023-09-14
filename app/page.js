@@ -1,6 +1,11 @@
 "use client";
 import Image from "next/image";
-import { Keypair } from "@solana/web3.js";
+import {
+  Connection,
+  Keypair,
+  LAMPORTS_PER_SOL,
+  PublicKey,
+} from "@solana/web3.js";
 import * as bip39 from "bip39";
 import { useRef, useState } from "react";
 import * as cryptico from "cryptico";
@@ -16,10 +21,9 @@ export default function Home() {
   const [encryptedMessage1, setEncryptedMessage1] = useState(null);
   const [encryptedMessage2, setEncryptedMessage2] = useState(null);
   const [decryptedMessage, setDecryptedMessage] = useState(null);
-  const inputEncryptedMessage = useRef(null);
   const [LCDecryptedMessage, setLCDecryptedMessage] = useState(null);
   const LCPassword = useRef(null);
-  const [encryptedAESKey, setEncryptedAESKey] = useState(null);
+  const [balance, setBalance] = useState(0);
 
   //Create Wallet
   const createWallet = () => {
@@ -101,6 +105,15 @@ export default function Home() {
     setLCDecryptedMessage(decrypted1 + decrypted2);
   };
 
+  const showBalance = async () => {
+    console.log(address);
+    const connection = new Connection("https://api.devnet.solana.com");
+    const pubKey = new PublicKey(address);
+    console.log(PublicKey.isOnCurve(pubKey));
+    const balance = await connection.getBalance(pubKey, "confirmed");
+    setBalance(balance / LAMPORTS_PER_SOL);
+  };
+
   return (
     <main className="flex min-h-screen flex-col items-center space-y-4 p-24">
       {/* Create Wallet */}
@@ -164,19 +177,8 @@ export default function Home() {
       <h1 className="text-center">{encryptedMessage1 + encryptedMessage2}</h1>
 
       {/* Decrypt Encrypted Mnemonic with RSA Private Key */}
-      <input
-        ref={inputEncryptedMessage}
-        className="rounded-full p-4 text-black w-[50%]"
-        placeholder="Encrypted Message"
-      ></input>
       <button
-        onClick={() => {
-          if (
-            inputEncryptedMessage.current.value &&
-            inputEncryptedMessage.current.value.length > 0
-          )
-            decryptMessage(inputEncryptedMessage.current.value);
-        }}
+        onClick={decryptMessage}
         className="rounded-full p-4 bg-red-500 text-white"
       >
         Decrypt
@@ -207,6 +209,13 @@ export default function Home() {
         Decrypt from localStorage
       </button>
       <h1 className="text-center">{LCDecryptedMessage}</h1>
+      <button
+        onClick={showBalance}
+        className="rounded-full p-4 bg-red-500 text-white"
+      >
+        Show Balance
+      </button>
+      <h1 className="text-center">{balance}</h1>
     </main>
   );
 }
