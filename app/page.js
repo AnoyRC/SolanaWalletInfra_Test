@@ -36,7 +36,7 @@ export default function Home() {
   const [balance, setBalance] = useState(0);
   const inputAmount = useRef(null);
   const inputTo = useRef(null);
-  const [id, setId] = useState(null);
+  const [id, setId] = useState([]);
   const [tokenBalance, setTokenBalance] = useState(0);
   const inputTokenAmount = useRef(null);
   const inputTokenTo = useRef(null);
@@ -45,14 +45,40 @@ export default function Home() {
     if (!address) return;
     showBalance();
     showTokenBalance();
+    balanceListerner();
+  }, [address]);
+
+  //Balance Listerner
+  const balanceListerner = async () => {
     const pubKey = new PublicKey(address);
-    if (id) connection.removeAccountChangeListener(id);
+
+    //Remove previous Listeners
+    if (id.length > 0) {
+      id.forEach((element) => {
+        connection.removeAccountChangeListener(element);
+      });
+    }
+
+    //Listen for Sol Balance
     const Connectionid = connection.onAccountChange(pubKey, (accountInfo) => {
       showBalance();
-      showTokenBalance();
     });
-    setId(Connectionid);
-  }, [address]);
+    setId([...id, Connectionid]);
+
+    //Listen for Token Balance
+    const tokenAddress = new PublicKey(
+      "Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr"
+    );
+    const tokenAccount = await getAssociatedTokenAddress(tokenAddress, pubKey);
+    const tokenPubKey = new PublicKey(tokenAccount.toString());
+    const TokenConnectionid = connection.onAccountChange(
+      tokenPubKey,
+      (accountInfo) => {
+        showTokenBalance();
+      }
+    );
+    setId([...id, TokenConnectionid]);
+  };
 
   //Create Wallet
   const createWallet = () => {
@@ -141,15 +167,15 @@ export default function Home() {
     setLCDecryptedMessage(decrypted1 + decrypted2);
   };
 
+  //Show Solana Balance
   const showBalance = async () => {
-    console.log(address);
-
     const pubKey = new PublicKey(address);
 
     const balance = await connection.getBalance(pubKey, "confirmed");
     setBalance(balance / LAMPORTS_PER_SOL);
   };
 
+  //Transfer Sol
   const transfer = async (amount, to) => {
     console.log(amount, to);
     const connection = new Connection("https://api.devnet.solana.com");
@@ -179,6 +205,7 @@ export default function Home() {
     showBalance();
   };
 
+  //Show Token Balance
   const showTokenBalance = async () => {
     const tokenAddress = new PublicKey(
       "Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr"
@@ -196,6 +223,7 @@ export default function Home() {
     );
   };
 
+  //Transfer Token
   const transferToken = async (amount, to) => {
     const tokenAddress = new PublicKey(
       "Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr"
@@ -229,6 +257,8 @@ export default function Home() {
     );
 
     console.log(signature);
+
+    showTokenBalance();
   };
 
   return (
@@ -326,6 +356,8 @@ export default function Home() {
         Decrypt from localStorage
       </button>
       <h1 className="text-center">{LCDecryptedMessage}</h1>
+
+      {/* Show Solana Balance */}
       <button
         onClick={showBalance}
         className="rounded-full p-4 bg-red-500 text-white"
@@ -333,6 +365,8 @@ export default function Home() {
         Show Balance
       </button>
       <h1 className="text-center">{balance} SOL</h1>
+
+      {/* Transfer Sol */}
       <input
         ref={inputTo}
         className="rounded-full p-4 text-black w-[50%]"
@@ -357,6 +391,8 @@ export default function Home() {
       >
         Transfer
       </button>
+
+      {/* Show Token Balance */}
       <button
         onClick={showTokenBalance}
         className="rounded-full p-4 bg-red-500 text-white"
@@ -364,6 +400,8 @@ export default function Home() {
         Show Balance
       </button>
       <h1 className="text-center">{tokenBalance} USDC-Dev</h1>
+
+      {/* Transfer Token */}
       <input
         ref={inputTokenTo}
         className="rounded-full p-4 text-black w-[50%]"
