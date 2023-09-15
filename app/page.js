@@ -12,7 +12,7 @@ import {
 import * as bip39 from "bip39";
 import { useRef, useState, useEffect } from "react";
 import * as cryptico from "cryptico";
-import { random, pki } from "node-forge";
+import forge, { random, pki } from "node-forge";
 import {
   transfer as tokenTransfer,
   getAccount,
@@ -74,10 +74,14 @@ export default function Home() {
   //Create RSA Key from Password
   const getKeyFromPassword = (password) => {
     const prng = random.createInstance();
-    prng.seedFileSync = () => password;
+    const md = forge.md.sha256.create();
+    md.update(password);
+
+    prng.seedFileSync = () => md.digest().toHex();
     const { privateKey, publicKey } = pki.rsa.generateKeyPair({
       bits: 512,
       prng,
+      workers: -1,
     });
     setRSAKey(privateKey);
     setRSAPubKey(publicKey);
