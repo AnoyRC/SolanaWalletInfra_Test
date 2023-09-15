@@ -14,7 +14,7 @@ import { useRef, useState, useEffect } from "react";
 import * as cryptico from "cryptico";
 import { random, pki } from "node-forge";
 import {
-  TOKEN_PROGRAM_ID,
+  transfer as tokenTransfer,
   getAccount,
   getAssociatedTokenAddress,
 } from "@solana/spl-token";
@@ -38,14 +38,18 @@ export default function Home() {
   const inputTo = useRef(null);
   const [id, setId] = useState(null);
   const [tokenBalance, setTokenBalance] = useState(0);
+  const inputTokenAmount = useRef(null);
+  const inputTokenTo = useRef(null);
 
   useEffect(() => {
     if (!address) return;
     showBalance();
+    showTokenBalance();
     const pubKey = new PublicKey(address);
     if (id) connection.removeAccountChangeListener(id);
     const Connectionid = connection.onAccountChange(pubKey, (accountInfo) => {
       showBalance();
+      showTokenBalance();
     });
     setId(Connectionid);
   }, [address]);
@@ -180,11 +184,44 @@ export default function Home() {
 
     const accountInfo = await getAccount(connection, tokenPubKey);
 
-    console.log(accountInfo);
-
     setTokenBalance(
       accountInfo ? Number(accountInfo.amount) / Math.pow(10, 6) : 0
     );
+  };
+
+  const transferToken = async (amount, to) => {
+    const tokenAddress = new PublicKey(
+      "Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr"
+    );
+    const toWallet = new PublicKey(to.toString());
+
+    const fromWallet = new PublicKey(address);
+
+    const fromTokenAddress = await getAssociatedTokenAddress(
+      tokenAddress,
+      fromWallet
+    );
+
+    const toTokenAddress = await getAssociatedTokenAddress(
+      tokenAddress,
+      toWallet
+    );
+
+    const amountInLamports = amount * Math.pow(10, 6);
+
+    const seed = bip39.mnemonicToSeedSync(mnemonic);
+    const keypair = Keypair.fromSeed(seed.slice(0, 32));
+
+    const signature = await tokenTransfer(
+      connection,
+      keypair,
+      fromTokenAddress,
+      toTokenAddress,
+      fromWallet,
+      amountInLamports
+    );
+
+    console.log(signature);
   };
 
   return (
@@ -320,6 +357,33 @@ export default function Home() {
         Show Balance
       </button>
       <h1 className="text-center">{tokenBalance} USDC-Dev</h1>
+      <input
+        ref={inputTokenTo}
+        className="rounded-full p-4 text-black w-[50%]"
+        placeholder="To"
+      ></input>
+      <input
+        ref={inputTokenAmount}
+        className="rounded-full p-4 text-black w-[50%]"
+        placeholder="Amount"
+      ></input>
+      <button
+        onClick={async () => {
+          if (
+            inputTokenAmount.current.value &&
+            inputTokenAmount.current.value.length > 0 &&
+            inputTokenTo.current.value &&
+            inputTokenTo.current.value.length > 0
+          )
+            await transferToken(
+              inputTokenAmount.current.value,
+              inputTokenTo.current.value
+            );
+        }}
+        className="rounded-full p-4 bg-red-500 text-white"
+      >
+        Transfer Token
+      </button>
     </main>
   );
 }
