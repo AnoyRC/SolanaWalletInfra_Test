@@ -13,6 +13,11 @@ import * as bip39 from "bip39";
 import { useRef, useState, useEffect } from "react";
 import * as cryptico from "cryptico";
 import { random, pki } from "node-forge";
+import {
+  TOKEN_PROGRAM_ID,
+  getAccount,
+  getAssociatedTokenAddress,
+} from "@solana/spl-token";
 
 const connection = new Connection("https://api.devnet.solana.com");
 
@@ -32,6 +37,7 @@ export default function Home() {
   const inputAmount = useRef(null);
   const inputTo = useRef(null);
   const [id, setId] = useState(null);
+  const [tokenBalance, setTokenBalance] = useState(0);
 
   useEffect(() => {
     if (!address) return;
@@ -162,6 +168,25 @@ export default function Home() {
     showBalance();
   };
 
+  const showTokenBalance = async () => {
+    const tokenAddress = new PublicKey(
+      "Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr"
+    );
+    const owner = new PublicKey(address);
+
+    const tokenAccount = await getAssociatedTokenAddress(tokenAddress, owner);
+
+    const tokenPubKey = new PublicKey(tokenAccount.toString());
+
+    const accountInfo = await getAccount(connection, tokenPubKey);
+
+    console.log(accountInfo);
+
+    setTokenBalance(
+      accountInfo ? Number(accountInfo.amount) / Math.pow(10, 6) : 0
+    );
+  };
+
   return (
     <main className="flex min-h-screen flex-col items-center space-y-4 p-24">
       {/* Create Wallet */}
@@ -263,7 +288,7 @@ export default function Home() {
       >
         Show Balance
       </button>
-      <h1 className="text-center">{balance}</h1>
+      <h1 className="text-center">{balance} SOL</h1>
       <input
         ref={inputTo}
         className="rounded-full p-4 text-black w-[50%]"
@@ -288,6 +313,13 @@ export default function Home() {
       >
         Transfer
       </button>
+      <button
+        onClick={showTokenBalance}
+        className="rounded-full p-4 bg-red-500 text-white"
+      >
+        Show Balance
+      </button>
+      <h1 className="text-center">{tokenBalance} USDC-Dev</h1>
     </main>
   );
 }
