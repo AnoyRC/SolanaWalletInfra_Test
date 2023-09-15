@@ -121,7 +121,10 @@ export default function Home() {
   const getFromLC_Decrypt = (password) => {
     //Create RSA Key from Password
     const prng = random.createInstance();
-    prng.seedFileSync = () => password;
+    const md = forge.md.sha256.create();
+    md.update(password);
+
+    prng.seedFileSync = () => md.digest().toHex();
     const { privateKey } = pki.rsa.generateKeyPair({
       bits: 512,
       prng,
