@@ -18,6 +18,12 @@ import {
   getAccount,
   getAssociatedTokenAddress,
 } from "@solana/spl-token";
+import IDL from "../Idl/idl";
+import { AnchorProvider, BN, Program, utils } from "@project-serum/anchor";
+import { findProgramAddressSync } from "@project-serum/anchor/dist/cjs/utils/pubkey";
+import { v4 } from "uuid";
+import { MyWallet as Wallet } from "@/Class/MyWallet";
+import randomId from "random-id";
 
 const connection = new Connection("https://api.devnet.solana.com");
 
@@ -40,6 +46,11 @@ export default function Home() {
   const [tokenBalance, setTokenBalance] = useState(0);
   const inputTokenAmount = useRef(null);
   const inputTokenTo = useRef(null);
+  const inputVoucherPassphrase = useRef(null);
+  const inputVoucherAmount = useRef(null);
+  const inputRedeemUUID = useRef(null);
+  const inputRedeemPassphrase = useRef(null);
+  const [uuid, setUuid] = useState("");
 
   useEffect(() => {
     if (!address) return;
@@ -261,6 +272,93 @@ export default function Home() {
     showTokenBalance();
   };
 
+  const generateVoucher = async (passphrase, amount) => {
+    const seed = bip39.mnemonicToSeedSync(mnemonic);
+    const keypair = Keypair.fromSeed(seed.slice(0, 32));
+    const wallet = new Wallet(keypair);
+
+    const provider = new AnchorProvider(connection, wallet, {
+      preflightCommitment: "processed",
+    });
+
+    const program = new Program(
+      IDL,
+      "AFDNGbaMr2SqHKZnhXSTkbVB2d6npfxQdFFthrzsD7KN",
+      provider
+    );
+
+    let len = 10;
+    let pattern = "EminenceVoucher";
+
+    const uid = randomId(len, pattern);
+
+    const [voucherPda] = findProgramAddressSync(
+      [
+        utils.bytes.utf8.encode("EMINENCE_VOUCHER"),
+        utils.bytes.utf8.encode(uid),
+        utils.bytes.utf8.encode(passphrase),
+      ],
+      program.programId
+    );
+
+    console.log(voucherPda.toString());
+
+    const amountBN = new BN(amount * LAMPORTS_PER_SOL);
+
+    const tx = await program.methods
+      .generateVoucher(uid, passphrase, amountBN)
+      .accounts({
+        authority: keypair.publicKey,
+        voucher: voucherPda,
+        systemProgram: SystemProgram.programId,
+      })
+      .rpc();
+
+    console.log(uid);
+    setUuid(uid);
+    console.log(passphrase);
+    console.log(tx);
+    showBalance();
+  };
+
+  const redeemVoucher = async (uuid, passphrase) => {
+    const seed = bip39.mnemonicToSeedSync(mnemonic);
+    const keypair = Keypair.fromSeed(seed.slice(0, 32));
+    const wallet = new Wallet(keypair);
+
+    const provider = new AnchorProvider(connection, wallet, {
+      preflightCommitment: "processed",
+    });
+
+    const program = new Program(
+      IDL,
+      "AFDNGbaMr2SqHKZnhXSTkbVB2d6npfxQdFFthrzsD7KN",
+      provider
+    );
+
+    const [voucherPda] = findProgramAddressSync(
+      [
+        utils.bytes.utf8.encode("EMINENCE_VOUCHER"),
+        utils.bytes.utf8.encode(uuid),
+        utils.bytes.utf8.encode(passphrase),
+      ],
+      program.programId
+    );
+
+    const tx = await program.methods
+      .redeemVoucher(uuid, passphrase)
+      .accounts({
+        authority: keypair.publicKey,
+        voucher: voucherPda,
+      })
+      .rpc();
+
+    console.log(uuid);
+    console.log(passphrase);
+    console.log(tx);
+    showBalance();
+  };
+
   return (
     <main className="flex min-h-screen flex-col items-center space-y-4 p-24">
       {/* Create Wallet */}
@@ -428,6 +526,65 @@ export default function Home() {
         className="rounded-full p-4 bg-red-500 text-white"
       >
         Transfer Token
+      </button>
+
+      {/* Generate Voucher */}
+      <input
+        ref={inputVoucherPassphrase}
+        className="rounded-full p-4 text-black w-[50%]"
+        placeholder="Passphrase"
+      ></input>
+      <input
+        ref={inputVoucherAmount}
+        className="rounded-full p-4 text-black w-[50%]"
+        placeholder="Amount"
+      ></input>
+      <button
+        onClick={async () => {
+          if (
+            inputVoucherPassphrase.current.value &&
+            inputVoucherPassphrase.current.value.length > 0 &&
+            inputVoucherAmount.current.value &&
+            inputVoucherAmount.current.value.length > 0
+          )
+            await generateVoucher(
+              inputVoucherPassphrase.current.value,
+              inputVoucherAmount.current.value
+            );
+        }}
+        className="rounded-full p-4 bg-red-500 text-white"
+      >
+        Generate Voucher
+      </button>
+      <h1 className="text-center">{uuid}</h1>
+
+      {/* Redeem Voucher */}
+      <input
+        ref={inputRedeemUUID}
+        className="rounded-full p-4 text-black w-[50%]"
+        placeholder="UUID"
+      ></input>
+      <input
+        ref={inputRedeemPassphrase}
+        className="rounded-full p-4 text-black w-[50%]"
+        placeholder="Passphrase"
+      ></input>
+      <button
+        onClick={async () => {
+          if (
+            inputRedeemUUID.current.value &&
+            inputRedeemUUID.current.value.length > 0 &&
+            inputRedeemPassphrase.current.value &&
+            inputRedeemPassphrase.current.value.length > 0
+          )
+            await redeemVoucher(
+              inputRedeemUUID.current.value,
+              inputRedeemPassphrase.current.value
+            );
+        }}
+        className="rounded-full p-4 bg-red-500 text-white"
+      >
+        Redeem Voucher
       </button>
     </main>
   );
