@@ -17,13 +17,24 @@ import {
   transfer as tokenTransfer,
   getAccount,
   getAssociatedTokenAddress,
+  getOrCreateAssociatedTokenAccount,
 } from "@solana/spl-token";
 import IDL from "../Idl/idl";
 import { AnchorProvider, BN, Program, utils } from "@project-serum/anchor";
 import { findProgramAddressSync } from "@project-serum/anchor/dist/cjs/utils/pubkey";
-import { v4 } from "uuid";
 import { MyWallet as Wallet } from "@/Class/MyWallet";
 import randomId from "random-id";
+import * as ed from "@noble/ed25519";
+import { sign } from "@noble/ed25519";
+import {
+  Elusiv,
+  SEED_MESSAGE,
+  airdropToken,
+  getMintAccount,
+} from "@elusiv/sdk";
+import { sha512 } from "@noble/hashes/sha512";
+
+ed.etc.sha512Sync = (...m) => sha512(ed.etc.concatBytes(...m));
 
 const connection = new Connection("https://api.devnet.solana.com");
 
@@ -51,6 +62,10 @@ export default function Home() {
   const inputRedeemUUID = useRef(null);
   const inputRedeemPassphrase = useRef(null);
   const [uuid, setUuid] = useState("");
+  const inputPrivateAmount = useRef(null);
+  const inputPrivateTo = useRef(null);
+  const inputPrivateUSDCAmount = useRef(null);
+  const inputPrivateUSDCto = useRef(null);
 
   useEffect(() => {
     if (!address) return;
@@ -61,6 +76,9 @@ export default function Home() {
 
   //Balance Listerner
   const balanceListerner = async () => {
+    const seed = bip39.mnemonicToSeedSync(mnemonic);
+    const keypair = Keypair.fromSeed(seed.slice(0, 32));
+
     const pubKey = new PublicKey(address);
 
     //Remove previous Listeners
@@ -78,12 +96,19 @@ export default function Home() {
 
     //Listen for Token Balance
     const tokenAddress = new PublicKey(
-      "Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr"
+      "F3hocsFVHrdTBG2yEHwnJHAJo4rZfnSwPg8d5nVMNKYE"
     );
-    const tokenAccount = await getAssociatedTokenAddress(tokenAddress, pubKey);
-    const tokenPubKey = new PublicKey(tokenAccount.toString());
+    const tokenAccount = await getOrCreateAssociatedTokenAccount(
+      connection,
+      keypair,
+      tokenAddress,
+      keypair.publicKey,
+      undefined,
+      "finalized"
+    );
+
     const TokenConnectionid = connection.onAccountChange(
-      tokenPubKey,
+      tokenAccount.address,
       (accountInfo) => {
         showTokenBalance();
       }
@@ -218,16 +243,22 @@ export default function Home() {
 
   //Show Token Balance
   const showTokenBalance = async () => {
+    const seed = bip39.mnemonicToSeedSync(mnemonic);
+    const keypair = Keypair.fromSeed(seed.slice(0, 32));
+
     const tokenAddress = new PublicKey(
-      "Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr"
+      "F3hocsFVHrdTBG2yEHwnJHAJo4rZfnSwPg8d5nVMNKYE"
     );
     const owner = new PublicKey(address);
 
-    const tokenAccount = await getAssociatedTokenAddress(tokenAddress, owner);
-
-    const tokenPubKey = new PublicKey(tokenAccount.toString());
-
-    const accountInfo = await getAccount(connection, tokenPubKey);
+    const accountInfo = await getOrCreateAssociatedTokenAccount(
+      connection,
+      keypair,
+      tokenAddress,
+      owner,
+      undefined,
+      "finalized"
+    );
 
     setTokenBalance(
       accountInfo ? Number(accountInfo.amount) / Math.pow(10, 6) : 0
@@ -237,32 +268,39 @@ export default function Home() {
   //Transfer Token
   const transferToken = async (amount, to) => {
     const tokenAddress = new PublicKey(
-      "Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr"
+      "F3hocsFVHrdTBG2yEHwnJHAJo4rZfnSwPg8d5nVMNKYE"
     );
+
+    const seed = bip39.mnemonicToSeedSync(mnemonic);
+    const keypair = Keypair.fromSeed(seed.slice(0, 32));
+
     const toWallet = new PublicKey(to.toString());
 
     const fromWallet = new PublicKey(address);
 
-    const fromTokenAddress = await getAssociatedTokenAddress(
+    const fromTokenAccount = await getOrCreateAssociatedTokenAccount(
+      connection,
+      keypair,
       tokenAddress,
-      fromWallet
+      fromWallet,
+      undefined,
+      "finalized"
     );
 
-    const toTokenAddress = await getAssociatedTokenAddress(
+    const toTokenAccount = await getOrCreateAssociatedTokenAccount(
+      connection,
+      keypair,
       tokenAddress,
       toWallet
     );
 
     const amountInLamports = amount * Math.pow(10, 6);
 
-    const seed = bip39.mnemonicToSeedSync(mnemonic);
-    const keypair = Keypair.fromSeed(seed.slice(0, 32));
-
     const signature = await tokenTransfer(
       connection,
       keypair,
-      fromTokenAddress,
-      toTokenAddress,
+      fromTokenAccount.address,
+      toTokenAccount.address,
       fromWallet,
       amountInLamports
     );
@@ -272,6 +310,7 @@ export default function Home() {
     showTokenBalance();
   };
 
+  //Generate Voucher
   const generateVoucher = async (passphrase, amount) => {
     const seed = bip39.mnemonicToSeedSync(mnemonic);
     const keypair = Keypair.fromSeed(seed.slice(0, 32));
@@ -321,6 +360,7 @@ export default function Home() {
     showBalance();
   };
 
+  //Redeem Voucher
   const redeemVoucher = async (uuid, passphrase) => {
     const seed = bip39.mnemonicToSeedSync(mnemonic);
     const keypair = Keypair.fromSeed(seed.slice(0, 32));
@@ -357,6 +397,127 @@ export default function Home() {
     console.log(passphrase);
     console.log(tx);
     showBalance();
+  };
+
+  //Transfer Private
+  const transferPrivate = async (amount, to) => {
+    const seed = bip39.mnemonicToSeedSync(mnemonic);
+    const keypair = Keypair.fromSeed(seed.slice(0, 32));
+
+    const ElusivSeed = await sign(
+      Buffer.from(SEED_MESSAGE, "utf-8"),
+      keypair.secretKey.slice(0, 32)
+    );
+
+    const elusiv = await Elusiv.getElusivInstance(
+      ElusivSeed,
+      keypair.publicKey,
+      connection,
+      "devnet"
+    );
+
+    const topupTxData = await elusiv.buildTopUpTx(
+      amount * LAMPORTS_PER_SOL,
+      "LAMPORTS"
+    );
+
+    topupTxData.tx.sign(keypair);
+
+    const topupSig = await elusiv.sendElusivTx(topupTxData);
+
+    console.log(topupSig);
+
+    const privateBalance = await elusiv.getLatestPrivateBalance("LAMPORTS");
+    console.log(`Current private balance: ${privateBalance}`);
+
+    const recipient = new PublicKey(to);
+    const estimatedFee = await elusiv.estimateSendFee({
+      recipient,
+      amount: Number(privateBalance),
+      tokenType: "LAMPORTS",
+    });
+    console.log(estimatedFee);
+    const sendTx = await elusiv.buildSendTx(
+      Number(privateBalance) - Number(estimatedFee.txFee),
+      recipient,
+      "LAMPORTS"
+    );
+    const sendSig = await elusiv.sendElusivTx(sendTx);
+
+    console.log(
+      `Performed topup with sig ${topupSig.signature} and send with sig ${sendSig.signature}`
+    );
+  };
+
+  const transferPrivateUSDC = async (amount, to) => {
+    const seed = bip39.mnemonicToSeedSync(mnemonic);
+    const keypair = Keypair.fromSeed(seed.slice(0, 32));
+
+    const ElusivSeed = sign(
+      Buffer.from(SEED_MESSAGE, "utf-8"),
+      keypair.secretKey.slice(0, 32)
+    );
+
+    const elusiv = await Elusiv.getElusivInstance(
+      ElusivSeed,
+      keypair.publicKey,
+      connection,
+      "devnet"
+    );
+
+    const topupTx = await elusiv.buildTopUpTx(amount * Math.pow(10, 6), "USDC");
+
+    topupTx.tx.partialSign(keypair);
+
+    const sig = await elusiv.sendElusivTx(topupTx);
+
+    console.log(sig);
+
+    const privateBalance = await elusiv.getLatestPrivateBalance("USDC");
+
+    console.log(privateBalance);
+
+    const recipient = new PublicKey(to);
+
+    const estimatedFee = await elusiv.estimateSendFee({
+      recipient,
+      amount: Number(privateBalance),
+      tokenType: "USDC",
+    });
+
+    const sendTx = await elusiv.buildSendTx(
+      Number(privateBalance) - Number(estimatedFee.txFee),
+      recipient,
+      "USDC"
+    );
+    const sendSig = await elusiv.sendElusivTx(sendTx);
+
+    console.log(sendSig.signature);
+  };
+
+  const airdropUSDC = async () => {
+    const seed = bip39.mnemonicToSeedSync(mnemonic);
+    const keypair = Keypair.fromSeed(seed.slice(0, 32));
+
+    const usdcMint = getMintAccount("USDC", "devnet");
+    console.log(usdcMint.toString());
+
+    const ataAcc = await getOrCreateAssociatedTokenAccount(
+      connection,
+      keypair,
+      usdcMint,
+      keypair.publicKey,
+      undefined,
+      "finalized"
+    );
+
+    const airdropSig = await airdropToken(
+      "USDC",
+      LAMPORTS_PER_SOL,
+      ataAcc.address
+    );
+
+    console.log(airdropSig);
   };
 
   return (
@@ -585,6 +746,74 @@ export default function Home() {
         className="rounded-full p-4 bg-red-500 text-white"
       >
         Redeem Voucher
+      </button>
+
+      {/* Transfer Private */}
+      <input
+        ref={inputPrivateTo}
+        className="rounded-full p-4 text-black w-[50%]"
+        placeholder="To"
+      ></input>
+      <input
+        ref={inputPrivateAmount}
+        className="rounded-full p-4 text-black w-[50%]"
+        placeholder="Amount"
+      ></input>
+      <button
+        onClick={async () => {
+          if (
+            inputPrivateAmount.current.value &&
+            inputPrivateAmount.current.value.length > 0 &&
+            inputPrivateTo.current.value &&
+            inputPrivateTo.current.value.length > 0
+          )
+            await transferPrivate(
+              inputPrivateAmount.current.value,
+              inputPrivateTo.current.value
+            );
+        }}
+        className="rounded-full p-4 bg-red-500 text-white"
+      >
+        Transfer Private
+      </button>
+
+      {/* Transfer Private USDC */}
+      <input
+        ref={inputPrivateUSDCto}
+        className="rounded-full p-4 text-black w-[50%]"
+        placeholder="To"
+      ></input>
+      <input
+        ref={inputPrivateUSDCAmount}
+        className="rounded-full p-4 text-black w-[50%]"
+        placeholder="Amount"
+      ></input>
+      <button
+        onClick={async () => {
+          if (
+            inputPrivateUSDCAmount.current.value &&
+            inputPrivateUSDCAmount.current.value.length > 0 &&
+            inputPrivateUSDCto.current.value &&
+            inputPrivateUSDCto.current.value.length > 0
+          )
+            await transferPrivateUSDC(
+              inputPrivateUSDCAmount.current.value,
+              inputPrivateUSDCto.current.value
+            );
+        }}
+        className="rounded-full p-4 bg-red-500 text-white"
+      >
+        Transfer Private USDC
+      </button>
+
+      {/* Airdrop USDC */}
+      <button
+        onClick={async () => {
+          await airdropUSDC();
+        }}
+        className="rounded-full p-4 bg-red-500 text-white"
+      >
+        Airdrop USDC
       </button>
     </main>
   );
