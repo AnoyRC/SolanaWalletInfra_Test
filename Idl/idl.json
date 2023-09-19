@@ -42,6 +42,7 @@
         "fields": [
           { "name": "authority", "type": "publicKey" },
           { "name": "amount", "type": "u64" },
+          { "name": "initialized", "type": "bool" },
           { "name": "claimed", "type": "bool" }
         ]
       }
