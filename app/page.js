@@ -7,6 +7,7 @@ import {
   PublicKey,
   SystemProgram,
   Transaction,
+  VersionedTransaction,
   sendAndConfirmTransaction,
 } from "@solana/web3.js";
 import * as bip39 from "bip39";
@@ -22,7 +23,7 @@ import {
 import IDL from "../Idl/idl";
 import { AnchorProvider, BN, Program, utils } from "@project-serum/anchor";
 import { findProgramAddressSync } from "@project-serum/anchor/dist/cjs/utils/pubkey";
-import { MyWallet as Wallet } from "@/Class/MyWallet";
+import { MyWallet, MyWallet as Wallet } from "@/Class/MyWallet";
 import randomId from "random-id";
 import * as ed from "@noble/ed25519";
 import { sign } from "@noble/ed25519";
@@ -33,6 +34,8 @@ import {
   getMintAccount,
 } from "@elusiv/sdk";
 import { sha512 } from "@noble/hashes/sha512";
+import fetch from "cross-fetch";
+import bs58 from "bs58";
 
 ed.etc.sha512Sync = (...m) => sha512(ed.etc.concatBytes(...m));
 
@@ -66,6 +69,8 @@ export default function Home() {
   const inputPrivateTo = useRef(null);
   const inputPrivateUSDCAmount = useRef(null);
   const inputPrivateUSDCto = useRef(null);
+  const inputSwapAmount = useRef(null);
+  const inputSwapUSDCAmount = useRef(null);
 
   useEffect(() => {
     if (!address) return;
@@ -520,6 +525,109 @@ export default function Home() {
     console.log(airdropSig);
   };
 
+  const swapJupiter = async (amount) => {
+    const seed = bip39.mnemonicToSeedSync(mnemonic);
+    const keypair = Keypair.fromSeed(seed.slice(0, 32));
+
+    const wallet = new MyWallet(keypair);
+
+    const data = await (
+      await fetch(
+        `https://quote-api.jup.ag/v6/quote?inputMint=So11111111111111111111111111111111111111112&outputMint=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v&amount=${
+          amount * LAMPORTS_PER_SOL
+        }&slippageBps=50`
+      )
+    ).json();
+    console.log(data);
+
+    const transaction = await (
+      await fetch("https://quote-api.jup.ag/v6/swap", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          quoteResponse: data,
+          userPublicKey: wallet.publicKey.toString(),
+          wrapUnwrapSOL: true,
+        }),
+      })
+    ).json();
+
+    const { swapTransaction } = transaction;
+
+    const swapTransactionBuf = Buffer.from(swapTransaction, "base64");
+    let tx = VersionedTransaction.deserialize(swapTransactionBuf);
+    console.log(tx);
+
+    tx.sign([wallet.payer]);
+
+    const rawTransaction = tx.serialize();
+    const txId = await connection.sendRawTransaction(rawTransaction, {
+      skipPreflight: true,
+      maxRetries: 2,
+    });
+
+    const latestBlockHash = await connection.getLatestBlockhash();
+
+    await connection.confirmTransaction({
+      blockhash: latestBlockHash.blockhash,
+      lastValidBlockHeight: latestBlockHash.lastValidBlockHeight,
+      signature: txId,
+    });
+  };
+
+  const swapUSDC = async (amount) => {
+    const seed = bip39.mnemonicToSeedSync(mnemonic);
+    const keypair = Keypair.fromSeed(seed.slice(0, 32));
+
+    const wallet = new MyWallet(keypair);
+
+    const data = await (
+      await fetch(
+        `https://quote-api.jup.ag/v6/quote?inputMint=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v&outputMint=So11111111111111111111111111111111111111112&amount=${
+          amount * Math.pow(10, 6)
+        }&slippageBps=50`
+      )
+    ).json();
+
+    const transaction = await (
+      await fetch("https://quote-api.jup.ag/v6/swap", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          quoteResponse: data,
+          userPublicKey: wallet.publicKey.toString(),
+          wrapUnwrapSOL: true,
+        }),
+      })
+    ).json();
+
+    const { swapTransaction } = transaction;
+
+    const swapTransactionBuf = Buffer.from(swapTransaction, "base64");
+    let tx = VersionedTransaction.deserialize(swapTransactionBuf);
+    console.log(tx);
+
+    tx.sign([wallet.payer]);
+
+    const rawTransaction = tx.serialize();
+    const txId = await connection.sendRawTransaction(rawTransaction, {
+      skipPreflight: true,
+      maxRetries: 2,
+    });
+
+    const latestBlockHash = await connection.getLatestBlockhash();
+
+    await connection.confirmTransaction({
+      blockhash: latestBlockHash.blockhash,
+      lastValidBlockHeight: latestBlockHash.lastValidBlockHeight,
+      signature: txId,
+    });
+  };
+
   return (
     <main className="flex min-h-screen flex-col items-center space-y-4 p-24">
       {/* Create Wallet */}
@@ -814,6 +922,44 @@ export default function Home() {
         className="rounded-full p-4 bg-red-500 text-white"
       >
         Airdrop USDC
+      </button>
+
+      {/* Swap */}
+      <input
+        ref={inputSwapAmount}
+        className="rounded-full p-4 text-black w-[50%]"
+        placeholder="Amount"
+      ></input>
+      <button
+        onClick={async () => {
+          if (
+            inputSwapAmount.current.value &&
+            inputSwapAmount.current.value.length > 0
+          )
+            await swapJupiter(inputSwapAmount.current.value);
+        }}
+        className="rounded-full p-4 bg-red-500 text-white"
+      >
+        Swap
+      </button>
+
+      {/* Swap USDC */}
+      <input
+        ref={inputSwapUSDCAmount}
+        className="rounded-full p-4 text-black w-[50%]"
+        placeholder="Amount USDC"
+      ></input>
+      <button
+        onClick={async () => {
+          if (
+            inputSwapUSDCAmount.current.value &&
+            inputSwapUSDCAmount.current.value.length > 0
+          )
+            await swapUSDC(inputSwapUSDCAmount.current.value);
+        }}
+        className="rounded-full p-4 bg-red-500 text-white"
+      >
+        Swap USDC
       </button>
     </main>
   );
