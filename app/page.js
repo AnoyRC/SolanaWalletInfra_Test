@@ -628,6 +628,29 @@ export default function Home() {
     });
   };
 
+  const birdEyeFetchHistory = async () => {
+    const date = new Date();
+    const time_to = Math.floor(date.getTime() / 1000);
+    date.setDate(date.getDate() - 10);
+    const time_from = Math.floor(date.getTime() / 1000);
+    console.log(time_from, time_to);
+    const { data } = await (
+      await fetch(
+        `https://public-api.birdeye.so/public/history_price?address=So11111111111111111111111111111111111111112&type=token&time_from=${time_from}&time_to=${time_to}`
+      )
+    ).json();
+
+    console.log(data);
+
+    const price = await (
+      await fetch(
+        "https://public-api.birdeye.so/public/price?address=So11111111111111111111111111111111111111112"
+      )
+    ).json();
+
+    console.log(price.data);
+  };
+
   return (
     <main className="flex min-h-screen flex-col items-center space-y-4 p-24">
       {/* Create Wallet */}
@@ -960,6 +983,16 @@ export default function Home() {
         className="rounded-full p-4 bg-red-500 text-white"
       >
         Swap USDC
+      </button>
+
+      {/* BirdEye Fetch History */}
+      <button
+        onClick={async () => {
+          await birdEyeFetchHistory();
+        }}
+        className="rounded-full p-4 bg-red-500 text-white"
+      >
+        BirdEye Fetch History
       </button>
     </main>
   );
