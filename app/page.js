@@ -651,6 +651,29 @@ export default function Home() {
     console.log(price.data);
   };
 
+  const moonpay = async () => {
+    const seed = bip39.mnemonicToSeedSync(mnemonic);
+    const keypair = Keypair.fromSeed(seed.slice(0, 32));
+
+    const moonpaySdk = window.MoonPayWebSdk.init({
+      flow: "buy",
+      environment: "sandbox",
+      variant: "overlay",
+      params: {
+        apiKey: "pk_test_123",
+        theme: "dark",
+        baseCurrencyCode: "usd",
+        baseCurrencyAmount: "100",
+        currencyCode: "sol",
+        walletAddress: keypair.publicKey.toString(),
+      },
+      debug: true,
+    });
+
+    console.log(moonpaySdk);
+    moonpaySdk.show();
+  };
+
   return (
     <main className="flex min-h-screen flex-col items-center space-y-4 p-24">
       {/* Create Wallet */}
@@ -993,6 +1016,16 @@ export default function Home() {
         className="rounded-full p-4 bg-red-500 text-white"
       >
         BirdEye Fetch History
+      </button>
+
+      {/* Moonpay */}
+      <button
+        onClick={async () => {
+          await moonpay();
+        }}
+        className="rounded-full p-4 bg-red-500 text-white"
+      >
+        Moonpay
       </button>
     </main>
   );
