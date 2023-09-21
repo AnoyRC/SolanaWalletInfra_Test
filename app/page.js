@@ -35,7 +35,17 @@ import {
 } from "@elusiv/sdk";
 import { sha512 } from "@noble/hashes/sha512";
 import fetch from "cross-fetch";
-import bs58 from "bs58";
+import WebSocket from "isomorphic-ws";
+import {
+  LineChart,
+  Line,
+  CartesianGrid,
+  XAxis,
+  YAxis,
+  Tooltip,
+  Area,
+  AreaChart,
+} from "recharts";
 
 ed.etc.sha512Sync = (...m) => sha512(ed.etc.concatBytes(...m));
 
@@ -71,6 +81,9 @@ export default function Home() {
   const inputPrivateUSDCto = useRef(null);
   const inputSwapAmount = useRef(null);
   const inputSwapUSDCAmount = useRef(null);
+  const [wsClient, setWsClient] = useState(null);
+  const inputInterval = useRef(null);
+  const [currentTicker, setCurrentTicker] = useState(null);
 
   useEffect(() => {
     if (!address) return;
@@ -628,27 +641,66 @@ export default function Home() {
     });
   };
 
-  const birdEyeFetchHistory = async () => {
-    const date = new Date();
-    const time_to = Math.floor(date.getTime() / 1000);
-    date.setDate(date.getDate() - 10);
-    const time_from = Math.floor(date.getTime() / 1000);
-    console.log(time_from, time_to);
-    const { data } = await (
-      await fetch(
-        `https://public-api.birdeye.so/public/history_price?address=So11111111111111111111111111111111111111112&type=token&time_from=${time_from}&time_to=${time_to}`
-      )
-    ).json();
-
-    console.log(data);
-
+  const binanceFetchHistory = async (interval) => {
     const price = await (
-      await fetch(
-        "https://public-api.birdeye.so/public/price?address=So11111111111111111111111111111111111111112"
-      )
+      await fetch("https://api.binance.com/api/v3/ticker/price?symbol=SOLUSDT")
     ).json();
 
-    console.log(price.data);
+    console.log(price);
+
+    if (wsClient) wsClient.close();
+
+    const client = new WebSocket("wss://ws-api.binance.com:443/ws-api/v3");
+
+    client.onopen = function () {
+      console.log("WebSocket Client Connected");
+      client.send(
+        JSON.stringify({
+          id: "1dbbeb56-8eea-466a-8f6e-86bdcfa2fc0b",
+          method: "klines",
+          params: {
+            symbol: "SOLUSDT",
+            interval: interval.toString(),
+            limit: 50,
+          },
+        })
+      );
+    };
+
+    client.onmessage = function (e) {
+      if (typeof e.data === "string") {
+        const result = JSON.parse(e.data).result;
+
+        const data = result.map((item) => {
+          return {
+            ticker: item[1],
+          };
+        });
+
+        console.log(data);
+        setCurrentTicker(data);
+      }
+
+      setTimeout(function timeout() {
+        client.send(
+          JSON.stringify({
+            id: "1dbbeb56-8eea-466a-8f6e-86bdcfa2fc0b",
+            method: "klines",
+            params: {
+              symbol: "SOLUSDT",
+              interval: interval.toString(),
+              limit: 50,
+            },
+          })
+        );
+      }, 60000);
+    };
+
+    client.onclose = function () {
+      console.log("WebSocket Client Closed");
+    };
+
+    setWsClient(client);
   };
 
   const moonpay = async () => {
@@ -1008,15 +1060,47 @@ export default function Home() {
         Swap USDC
       </button>
 
-      {/* BirdEye Fetch History */}
+      {/* Binance Fetch History */}
+      <input
+        ref={inputInterval}
+        className="rounded-full p-4 text-black w-[50%]"
+        placeholder="Interval"
+      ></input>
       <button
         onClick={async () => {
-          await birdEyeFetchHistory();
+          if (
+            inputInterval.current.value &&
+            inputInterval.current.value.length > 0
+          )
+            await binanceFetchHistory(inputInterval.current.value);
         }}
         className="rounded-full p-4 bg-red-500 text-white"
       >
-        BirdEye Fetch History
+        Binance Fetch History
       </button>
+
+      {currentTicker && currentTicker.length > 0 && (
+        <AreaChart
+          width={500}
+          height={200}
+          data={currentTicker}
+          margin={{
+            top: 10,
+            right: 30,
+            left: 0,
+            bottom: 0,
+          }}
+        >
+          <YAxis domain={["datamin", "datamax"]} hide />
+          <Tooltip />
+          <Area
+            type="monotone"
+            dataKey="ticker"
+            stroke="#49E9FF"
+            fill="#40FF8D"
+          />
+        </AreaChart>
+      )}
 
       {/* Moonpay */}
       <button
