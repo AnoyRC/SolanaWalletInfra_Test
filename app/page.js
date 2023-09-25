@@ -46,6 +46,7 @@ import {
   Area,
   AreaChart,
 } from "recharts";
+import { OnrampWebSDK } from "@onramp.money/onramp-web-sdk";
 
 ed.etc.sha512Sync = (...m) => sha512(ed.etc.concatBytes(...m));
 
@@ -707,23 +708,35 @@ export default function Home() {
     const seed = bip39.mnemonicToSeedSync(mnemonic);
     const keypair = Keypair.fromSeed(seed.slice(0, 32));
 
-    const moonpaySdk = window.MoonPayWebSdk.init({
-      flow: "buy",
-      environment: "sandbox",
-      variant: "overlay",
-      params: {
-        apiKey: "pk_test_123",
-        theme: "dark",
-        baseCurrencyCode: "usd",
-        baseCurrencyAmount: "100",
-        currencyCode: "sol",
-        walletAddress: keypair.publicKey.toString(),
-      },
-      debug: true,
+    // const moonpaySdk = window.MoonPayWebSdk.init({
+    //   flow: "buy",
+    //   environment: "sandbox",
+    //   variant: "overlay",
+    //   params: {
+    //     apiKey: "pk_test_123",
+    //     theme: "dark",
+    //     baseCurrencyCode: "usd",
+    //     baseCurrencyAmount: "100",
+    //     currencyCode: "sol",
+    //     walletAddress: keypair.publicKey.toString(),
+    //   },
+    //   debug: true,
+    // });
+
+    // console.log(moonpaySdk);
+    // moonpaySdk.show();
+
+    const onrampInstance = new OnrampWebSDK({
+      appId: 1, // replace this with the appID you got during onboarding process
+      walletAddress: keypair.publicKey.toString(), // replace with user's wallet address
+      flowType: 1, // 1 -> onramp || 2 -> offramp || 3 -> Merchant checkout
+      paymentMethod: 2,
+      coinCode: "sol",
+      fiatAmount: 1000,
+      network: "spl",
     });
 
-    console.log(moonpaySdk);
-    moonpaySdk.show();
+    onrampInstance.show();
   };
 
   return (
