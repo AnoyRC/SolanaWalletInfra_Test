@@ -47,6 +47,8 @@ import {
   AreaChart,
 } from "recharts";
 import { OnrampWebSDK } from "@onramp.money/onramp-web-sdk";
+import nacl from "tweetnacl-sealed-box";
+import { hexToBytes } from "node-forge/lib/util";
 
 ed.etc.sha512Sync = (...m) => sha512(ed.etc.concatBytes(...m));
 
@@ -85,6 +87,8 @@ export default function Home() {
   const [wsClient, setWsClient] = useState(null);
   const inputInterval = useRef(null);
   const [currentTicker, setCurrentTicker] = useState(null);
+  const inputTestPassword = useRef(null);
+  const [testKey, setTestKey] = useState(null);
 
   useEffect(() => {
     if (!address) return;
@@ -739,6 +743,48 @@ export default function Home() {
     onrampInstance.show();
   };
 
+  const testKeyGen = async (password) => {
+    console.log(Date.now());
+    var derivedKey = forge.pkcs5.pbkdf2(
+      Date.now().toString(),
+      "Eminence",
+      2,
+      24
+    );
+    const nonce = Uint8Array.from(Buffer.from(derivedKey, "binary"));
+    // let iv = forge.random.getBytesSync(16);
+
+    // const message = mnemonic;
+    // var cipher = forge.cipher.createCipher("3DES-ECB", derivedKey);
+    // cipher.start();
+    // cipher.update(forge.util.createBuffer(message));
+    // cipher.finish();
+    // var encrypted = cipher.output;
+
+    // var decipher = forge.cipher.createDecipher("3DES-ECB", derivedKey);
+    // decipher.start();
+    // decipher.update(encrypted);
+    // var result = decipher.finish(); // check 'result' for true/false
+    // // outputs decrypted hex
+    // setTestKey(decipher.output.data);
+    const seed = bip39.mnemonicToSeedSync(mnemonic);
+    const keypair = Keypair.fromSeed(seed.slice(0, 32));
+
+    const keys = nacl.box.keyPair.fromSecretKey(keypair.secretKey.slice(0, 32));
+    const utf8Encoder = new TextEncoder();
+    const message = utf8Encoder.encode("My Name is Anoy Roy Chowdhury");
+    const encrypted = nacl.sealedbox(message, nonce, keys.publicKey);
+
+    const decrypted = nacl.sealedbox.open(
+      encrypted,
+      nonce,
+      keypair._keypair.secretKey.slice(0, 32)
+    );
+
+    const decoder = new TextDecoder();
+    console.log(decoder.decode(decrypted));
+  };
+
   return (
     <main className="flex min-h-screen flex-col items-center space-y-4 p-24">
       {/* Create Wallet */}
@@ -1124,6 +1170,26 @@ export default function Home() {
       >
         Moonpay
       </button>
+
+      {/* Test KeyGen */}
+      <input
+        ref={inputTestPassword}
+        className="rounded-full p-4 text-black w-[50%]"
+        placeholder="Password"
+      ></input>
+      <button
+        onClick={async () => {
+          if (
+            inputTestPassword.current.value &&
+            inputTestPassword.current.value.length > 0
+          )
+            await testKeyGen(inputTestPassword.current.value);
+        }}
+        className="rounded-full p-4 bg-red-500 text-white"
+      >
+        Test KeyGen
+      </button>
+      <h1>{testKey}</h1>
     </main>
   );
 }
