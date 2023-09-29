@@ -174,16 +174,20 @@ export default function Home() {
     let iv = forge.random.getBytesSync(16);
 
     const message = mnemonic;
-    const textEncoder = new TextEncoder();
     let cipher = forge.cipher.createCipher("AES-CBC", AESKey);
     cipher.start({ iv: iv });
+    console.log(forge.util.createBuffer(iv).toHex());
     cipher.update(forge.util.createBuffer(message));
     cipher.finish();
     let encrypted = cipher.output;
     console.log(encrypted.toHex());
 
     let decipher = forge.cipher.createDecipher("AES-CBC", AESKey);
-    decipher.start({ iv: iv });
+    decipher.start({
+      iv: forge.util.createBuffer(
+        Buffer.from(forge.util.createBuffer(iv).toHex(), "hex")
+      ),
+    });
     decipher.update(
       forge.util.createBuffer(Buffer.from(encrypted.toHex(), "hex"))
     );
