@@ -49,6 +49,7 @@ import {
 import { OnrampWebSDK } from "@onramp.money/onramp-web-sdk";
 import nacl from "tweetnacl-sealed-box";
 import { hexToBytes } from "node-forge/lib/util";
+import { bs58 } from "@project-serum/anchor/dist/cjs/utils/bytes";
 
 ed.etc.sha512Sync = (...m) => sha512(ed.etc.concatBytes(...m));
 
@@ -59,8 +60,7 @@ export default function Home() {
   const [address, setAddress] = useState("");
   const inputMnemonic = useRef(null);
   const inputPassword = useRef(null);
-  const [RSAPubKey, setRSAPubKey] = useState(null);
-  const [RSAKey, setRSAKey] = useState(null);
+  const [AESKey, setAESKey] = useState(null);
   const [encryptedMessage1, setEncryptedMessage1] = useState(null);
   const [encryptedMessage2, setEncryptedMessage2] = useState(null);
   const [decryptedMessage, setDecryptedMessage] = useState(null);
@@ -158,33 +158,37 @@ export default function Home() {
 
   //Create RSA Key from Password
   const getKeyFromPassword = (password) => {
-    const prng = random.createInstance();
-    const md = forge.md.sha256.create();
-    md.update(password);
-
-    prng.seedFileSync = () => md.digest().toHex();
-    const { privateKey, publicKey } = pki.rsa.generateKeyPair({
-      bits: 512,
-      prng,
-      workers: -1,
-    });
-    setRSAKey(privateKey);
-    setRSAPubKey(publicKey);
+    forge.pkcs5.pbkdf2(
+      password,
+      "Eminence",
+      20000,
+      24,
+      function (err, derivedKey) {
+        setAESKey(derivedKey);
+      }
+    );
   };
 
   //Encrypt Mnemonic with RSA Public Key
   const encryptMessage = () => {
-    //Chunk 1 of Mnemonic
-    const chunk1 = mnemonic.slice(0, 35);
-    const encrypted1 = RSAPubKey.encrypt(chunk1);
+    let iv = forge.random.getBytesSync(16);
 
-    //Chunk 2 of Mnemonic
-    const chunk2 = mnemonic.slice(35, mnemonic.length);
-    const encrypted2 = RSAPubKey.encrypt(chunk2);
+    const message = mnemonic;
+    const textEncoder = new TextEncoder();
+    let cipher = forge.cipher.createCipher("AES-CBC", AESKey);
+    cipher.start({ iv: iv });
+    cipher.update(forge.util.createBuffer(message));
+    cipher.finish();
+    let encrypted = cipher.output;
+    console.log(encrypted.toHex());
 
-    //Set Encrypted Mnemonic
-    setEncryptedMessage1(encrypted1);
-    setEncryptedMessage2(encrypted2);
+    let decipher = forge.cipher.createDecipher("AES-CBC", AESKey);
+    decipher.start({ iv: iv });
+    decipher.update(
+      forge.util.createBuffer(Buffer.from(encrypted.toHex(), "hex"))
+    );
+    decipher.finish();
+    console.log(decipher.output.getBytes());
   };
 
   //Decrypt Encrypted Mnemonic with RSA Private Key
@@ -745,34 +749,26 @@ export default function Home() {
 
   const testKeyGen = async (password) => {
     console.log(Date.now());
-    var derivedKey = forge.pkcs5.pbkdf2(
+    const derivedKey = forge.pkcs5.pbkdf2(
       Date.now().toString(),
       "Eminence",
       2,
       24
     );
     const nonce = Uint8Array.from(Buffer.from(derivedKey, "binary"));
-    // let iv = forge.random.getBytesSync(16);
-
-    // const message = mnemonic;
-    // var cipher = forge.cipher.createCipher("3DES-ECB", derivedKey);
-    // cipher.start();
-    // cipher.update(forge.util.createBuffer(message));
-    // cipher.finish();
-    // var encrypted = cipher.output;
-
-    // var decipher = forge.cipher.createDecipher("3DES-ECB", derivedKey);
-    // decipher.start();
-    // decipher.update(encrypted);
-    // var result = decipher.finish(); // check 'result' for true/false
-    // // outputs decrypted hex
-    // setTestKey(decipher.output.data);
     const seed = bip39.mnemonicToSeedSync(mnemonic);
     const keypair = Keypair.fromSeed(seed.slice(0, 32));
 
     const keys = nacl.box.keyPair.fromSecretKey(keypair.secretKey.slice(0, 32));
     const utf8Encoder = new TextEncoder();
     const message = utf8Encoder.encode("My Name is Anoy Roy Chowdhury");
+    const signature = nacl.sign.detached(
+      utf8Encoder.encode(
+        "Welcome to Eminence Wallet. Sign this message to verify your identity."
+      ),
+      keypair.secretKey
+    );
+    console.log(bs58.encode(signature));
     const encrypted = nacl.sealedbox(message, nonce, keys.publicKey);
 
     const decrypted = nacl.sealedbox.open(
@@ -832,11 +828,9 @@ export default function Home() {
         }}
         className="rounded-full p-4 bg-red-500 text-white"
       >
-        Create RSA Key
+        Create AES Key
       </button>
-      <h1 className="text-center">
-        {RSAPubKey ? cryptico.publicKeyString(RSAPubKey) : ""}
-      </h1>
+      <h1 className="text-center">{AESKey}</h1>
 
       {/* Encrypt Mnemonic with RSA Public key */}
       <button
