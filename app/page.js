@@ -61,8 +61,7 @@ export default function Home() {
   const inputMnemonic = useRef(null);
   const inputPassword = useRef(null);
   const [AESKey, setAESKey] = useState(null);
-  const [encryptedMessage1, setEncryptedMessage1] = useState(null);
-  const [encryptedMessage2, setEncryptedMessage2] = useState(null);
+  const [encryptedMessage, setEncryptedMessage] = useState(null);
   const [decryptedMessage, setDecryptedMessage] = useState(null);
   const [LCDecryptedMessage, setLCDecryptedMessage] = useState(null);
   const LCPassword = useRef(null);
@@ -180,7 +179,9 @@ export default function Home() {
     cipher.update(forge.util.createBuffer(message));
     cipher.finish();
     let encrypted = cipher.output;
-    console.log(encrypted.toHex());
+    setEncryptedMessage(
+      forge.util.createBuffer(iv).toHex() + encrypted.toHex()
+    );
 
     let decipher = forge.cipher.createDecipher("AES-CBC", AESKey);
     decipher.start({
@@ -197,41 +198,49 @@ export default function Home() {
 
   //Decrypt Encrypted Mnemonic with RSA Private Key
   const decryptMessage = () => {
-    const decrypted1 = RSAKey.decrypt(encryptedMessage1);
-    const decrypted2 = RSAKey.decrypt(encryptedMessage2);
-    setDecryptedMessage(decrypted1 + decrypted2);
+    const encrypted = encryptedMessage;
+    const iv = forge.util.createBuffer(
+      Buffer.from(encrypted.slice(0, 32), "hex")
+    );
+    const message = forge.util.createBuffer(
+      Buffer.from(encrypted.slice(32), "hex")
+    );
+
+    let decipher = forge.cipher.createDecipher("AES-CBC", AESKey);
+    decipher.start({ iv: iv });
+    decipher.update(message);
+    decipher.finish();
+    setDecryptedMessage(decipher.output.toString());
   };
 
   //Store Encrypted Mnemonic in localStorage
   const storeInLocalStorage = () => {
-    localStorage.setItem(
-      "secretPair",
-      `${encryptedMessage1}---${encryptedMessage2}`
-    );
+    localStorage.setItem("secretPair", encryptedMessage);
   };
 
   //Get Encrypted Mnemonic from localStorage and Decrypt with RSA Private Key from Password
   const getFromLC_Decrypt = (password) => {
-    //Create RSA Key from Password
-    const prng = random.createInstance();
-    const md = forge.md.sha256.create();
-    md.update(password);
+    const encrypted = localStorage.getItem("secretPair");
+    const iv = forge.util.createBuffer(
+      Buffer.from(encrypted.slice(0, 32), "hex")
+    );
+    const message = forge.util.createBuffer(
+      Buffer.from(encrypted.slice(32), "hex")
+    );
 
-    prng.seedFileSync = () => md.digest().toHex();
-    const { privateKey } = pki.rsa.generateKeyPair({
-      bits: 512,
-      prng,
-    });
-
-    //Get Encrypted Mnemonic from localStorage
-    const secretPair = localStorage.getItem("secretPair");
-
-    //Decrypt Encrypted Mnemonic with RSA Private Key
-    const encrypted1 = secretPair.split("---")[0];
-    const encrypted2 = secretPair.split("---")[1];
-    const decrypted1 = privateKey.decrypt(encrypted1);
-    const decrypted2 = privateKey.decrypt(encrypted2);
-    setLCDecryptedMessage(decrypted1 + decrypted2);
+    forge.pkcs5.pbkdf2(
+      password,
+      "Eminence",
+      20000,
+      24,
+      function (err, derivedKey) {
+        let decipher = forge.cipher.createDecipher("AES-CBC", derivedKey);
+        decipher.start({ iv: iv });
+        decipher.update(message);
+        decipher.finish();
+        setLCDecryptedMessage(decipher.output.toString());
+      }
+    );
   };
 
   //Show Solana Balance
@@ -785,6 +794,21 @@ export default function Home() {
     console.log(decoder.decode(decrypted));
   };
 
+  const sign = () => {
+    const seed = bip39.mnemonicToSeedSync(mnemonic);
+    const keypair = Keypair.fromSeed(seed.slice(0, 32));
+
+    const message =
+      "Welcome to Eminence Wallet. Sign this message to verify your identity.";
+
+    const signature = nacl.sign.detached(
+      Buffer.from(message, "utf-8"),
+      keypair.secretKey
+    );
+
+    console.log(bs58.encode(signature));
+  };
+
   return (
     <main className="flex min-h-screen flex-col items-center space-y-4 p-24">
       {/* Create Wallet */}
@@ -843,7 +867,7 @@ export default function Home() {
       >
         Encrypt
       </button>
-      <h1 className="text-center">{encryptedMessage1 + encryptedMessage2}</h1>
+      <h1 className="text-center">{encryptedMessage}</h1>
 
       {/* Decrypt Encrypted Mnemonic with RSA Private Key */}
       <button
@@ -1188,6 +1212,16 @@ export default function Home() {
         Test KeyGen
       </button>
       <h1>{testKey}</h1>
+
+      {/* Sign */}
+      <button
+        onClick={async () => {
+          await sign();
+        }}
+        className="rounded-full p-4 bg-red-500 text-white"
+      >
+        Sign
+      </button>
     </main>
   );
 }
